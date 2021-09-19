@@ -1,4 +1,5 @@
 #  原作者項目
+這個42項目裏面的脚本文件 有cfapi  如果另一個原項目api沒有更新api 就用42這個脚本裏面api替換一下 如果出現問題就這樣子
 https://blog.keyboardman.fun/linux/42.html
 代碼
 wget  -N --no-check-certificate https://raw.githubusercontent.com/yulewang/cloudflare-api-v4-ddns/master/cf-v4-ddns.sh
