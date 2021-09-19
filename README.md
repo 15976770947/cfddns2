@@ -1,3 +1,5 @@
+#  請求頭
+wget  -N --no-check-certificate 也可以這樣子
 #  多個ddns域名
 自行替換下面cf 什麽sh文件即可
 #  原作者項目
