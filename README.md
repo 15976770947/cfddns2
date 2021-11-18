@@ -1,3 +1,6 @@
+#  参考
+https://nathosts.com/index.php?rp=/knowledgebase/4/DDNSCloudFlare.html
+后台设置可参考这个
 #  請求頭
 wget  -N --no-check-certificate 也可以這樣子
 #  多個ddns域名
