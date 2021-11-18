@@ -49,3 +49,32 @@ bash <(curl -sL  )
 wget -N --no-check-certificate "https://github.000060000.xyz/tcpx.sh" && chmod +x tcpx.sh && ./tcpx.sh
 
 source <(curl -sL https://multi.netlify.app/v2ray.sh) 
+
+#  翻译里面文件
+# API 密钥，参见 https://www.cloudflare.com/a/account/my-account，
+# 不正确的 api-key 导致 E_UNAUTH 错误
+CFKEY=
+
+# 用户名，例如：user@example.com
+CFUSER=
+
+# 区域名称，例如：example.com
+CFZONE_NAME=
+
+# 要更新的主机名，例如：homeserver.example.com
+CFRECORD_NAME=
+
+# 记录类型，A(IPv4)|AAAA(IPv6)，默认IPv4
+CFRECORD_TYPE=A
+
+# Cloudflare TTL 记录，在 120 到 86400 秒之间
+CFTTL=120
+
+# 忽略本地文件，更新ip
+强制=假
+
+WANIPSITE="http://ipv4.icanhazip.com"
+#  编辑
+输入i编辑即可
+还有个免费ddns参考
+https://doc.anyhk.net/anyhk-nat/ddns/ddns-changeip
