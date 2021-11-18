@@ -22,3 +22,30 @@ bash /usr/local/bin/cf-v3-ddns2.sh
 10哪裏是分鐘 可設置為2
 #  提醒
 保存并退出。输入service crond status，可以看到contab的运行状态。如果contab服务没有打开，建议参考http://man.linuxde.net/crontab教程，它涵盖了crontab服务状态的启动、重启、查看、简单配置等内容。另外也可以看看http://linuxtools-rst.readthedocs.io/zh_CN/latest/tool/crontab.html和http://www.runoob.com/linux/linux-comm-crontab.html。
+#  如何自建
+Vps ssh命令
+
+这个是文件编辑vps机器
+vi  路径加文件
+常用 新建文件 新建文件夹
+https://blog.csdn.net/cat_book_milk/article/details/64905904
+远程上传文件到ssh
+curl https://raw.githubusercontent.com/15976770947/cfddns2/main/ddns2 > /usr/local/bin/cf-v3-ddns2.sh && chmod +x /usr/local/bin/cf-v3-ddns2.sh
+也可以只远程上传文件
+編輯文件 vi /usr/local/bin/cf-v3-ddns2.sh
+wget 
+
+保存
+返回键 :wq 或者x 保存即可
+
+chmod +x /usr/local/bin/cf-v3-ddns2.sh 
+允许可执行文件代码
+找东西都是 /开头根目录然后/
+或者使用。ftp软件操作
+
+bash -c "$(curl -L
+bash <(curl -sL  )
+
+wget -N --no-check-certificate "https://github.000060000.xyz/tcpx.sh" && chmod +x tcpx.sh && ./tcpx.sh
+
+source <(curl -sL https://multi.netlify.app/v2ray.sh) 
