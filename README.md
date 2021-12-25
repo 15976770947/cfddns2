@@ -22,10 +22,11 @@ bash /usr/local/bin/cf-v3-ddns2.sh
 # 後臺運行
 输入crontab -e，然后会弹出vi编辑界面，在里面添加一行：
 */10 * * * *  /usr/local/bin/cf-ddns.sh >/dev/null 2>&1
+#  1
 */10 * * * *  /usr/local/bin/cf-ddns.sh >/dev/null 2>&1
-
+#  1
 */5 * * * *  bash /usr/local/bin/cf-ddns.sh >/dev/null 2>&1
-
+#  1
 */2 * * * * /root/cf-v4-ddns.sh >/dev/null 2>&1
 10哪裏是分鐘 可設置為2
 #  提醒
