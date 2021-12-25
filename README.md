@@ -14,12 +14,12 @@ vim cf-v4-ddns.sh
 https://www.shiyanhe.com/149.html/
 
 #  操作方式
-curl https://raw.githubusercontent.com/15976770947/cfddns2/main/ddns2 > /usr/local/bin/cf-v3-ddns2.sh && chmod +x /usr/local/bin/cf-v3-ddns2.sh
-編輯文件 
+curl https://raw.githubusercontent.com/15976770947/cfddns2/main/ddns2 > /usr/local/bin/cf-ddns.sh && chmod +x /usr/local/bin/cf-ddns.sh
+# 編輯文件 
 vi  /usr/local/bin/cf-v3-ddns2.sh
-執行檢測是否成功
+# 執行檢測是否成功
 bash /usr/local/bin/cf-v3-ddns2.sh
-後臺運行
+# 後臺運行
 输入crontab -e，然后会弹出vi编辑界面，在里面添加一行：
 */10 * * * *  /usr/local/bin/cf-ddns.sh >/dev/null 2>&1
 10哪裏是分鐘 可設置為2
