@@ -22,6 +22,11 @@ bash /usr/local/bin/cf-v3-ddns2.sh
 # 後臺運行
 输入crontab -e，然后会弹出vi编辑界面，在里面添加一行：
 */10 * * * *  /usr/local/bin/cf-ddns.sh >/dev/null 2>&1
+*/10 * * * *  /usr/local/bin/cf-ddns.sh >/dev/null 2>&1
+
+*/5 * * * *  bash /usr/local/bin/cf-ddns.sh >/dev/null 2>&1
+
+*/2 * * * * /root/cf-v4-ddns.sh >/dev/null 2>&1
 10哪裏是分鐘 可設置為2
 #  提醒
 保存并退出。输入service crond status，可以看到contab的运行状态。如果contab服务没有打开，建议参考http://man.linuxde.net/crontab教程，它涵盖了crontab服务状态的启动、重启、查看、简单配置等内容。另外也可以看看http://linuxtools-rst.readthedocs.io/zh_CN/latest/tool/crontab.html和http://www.runoob.com/linux/linux-comm-crontab.html。
