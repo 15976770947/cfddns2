@@ -1,4 +1,6 @@
 #  参考
+https://web.archive.org/web/20221210153109/https://www.cnblogs.com/uwiu/p/15794986.html
+https://web.archive.org/web/20221210153307/https://github.com/n0raml/cloudflare-ddns-v4v6
 https://nathosts.com/index.php?rp=/knowledgebase/4/DDNSCloudFlare.html
 后台设置可参考这个
 #  請求頭
