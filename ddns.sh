@@ -1,123 +1,148 @@
-#!/bin/bash
-## change to "bin/sh" when necessary
+#!/usr/bin/env bash
+set -o errexit
+set -o nounset
+set -o pipefail
 
-auth_email=""                                       # The email used to login 'https://dash.cloudflare.com'
-auth_method="token"                                 # Set to "global" for Global API Key or "token" for Scoped API Token
-auth_key=""                                         # Your API Token or Global API Key
-zone_identifier=""                                  # Can be found in the "Overview" tab of your domain
-record_name=""                                      # Which record you want to be synced
-ttl="3600"                                          # Set the DNS TTL (seconds)
-proxy="false"                                       # Set the proxy to true or false
-sitename=""                                         # Title of site "Example Site"
-slackchannel=""                                     # Slack Channel #example
-slackuri=""                                         # URI for Slack WebHook "https://hooks.slack.com/services/xxxxx"
-discorduri=""                                       # URI for Discord WebHook "https://discordapp.com/api/webhooks/xxxxx"
+# Automatically update your CloudFlare DNS record to the IP, Dynamic DNS
+# Can retrieve cloudflare Domain id and list zone's, because, lazy
+
+# Place at:
+# curl https://raw.githubusercontent.com/yulewang/cloudflare-api-v4-ddns/master/cf-v4-ddns.sh > /usr/local/bin/cf-ddns.sh && chmod +x /usr/local/bin/cf-ddns.sh
+# run `crontab -e` and add next line:
+# */1 * * * * /usr/local/bin/cf-ddns.sh >/dev/null 2>&1
+# or you need log:
+# */1 * * * * /usr/local/bin/cf-ddns.sh >> /var/log/cf-ddns.log 2>&1
 
 
-###########################################
-## Check if we have a public IP
-###########################################
-ipv4_regex='([01]?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])\.([01]?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])\.([01]?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])\.([01]?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])'
-ip=$(curl -s -4 https://cloudflare.com/cdn-cgi/trace | grep -E '^ip'); ret=$?
-if [[ ! $ret == 0 ]]; then # In the case that cloudflare failed to return an ip.
-    # Attempt to get the ip from other websites.
-    ip=$(curl -s https://api.ipify.org || curl -s https://ipv4.icanhazip.com)
+# Usage:
+# cf-ddns.sh -k cloudflare-api-key \
+#            -u user@example.com \
+#            -h host.example.com \     # fqdn of the record you want to update
+#            -z example.com \          # will show you all zones if forgot, but you need this
+#            -t A|AAAA                 # specify ipv4/ipv6, default: ipv4
+
+# Optional flags:
+#            -f false|true \           # force dns update, disregard local stored ip
+
+# default config
+
+# API key, see https://www.cloudflare.com/a/account/my-account,
+# incorrect api-key results in E_UNAUTH error
+CFKEY=
+
+# Username, eg: user@example.com
+CFUSER=
+
+# Zone name, eg: example.com
+CFZONE_NAME=
+
+# Hostname to update, eg: homeserver.example.com
+CFRECORD_NAME=
+
+# Record type, A(IPv4)|AAAA(IPv6), default IPv4
+CFRECORD_TYPE=A
+
+# Cloudflare TTL for record, between 120 and 86400 seconds
+CFTTL=120
+
+# Ignore local file, update ip anyway
+FORCE=false
+
+WANIPSITE="http://ipv4.icanhazip.com"
+
+# Site to retrieve WAN ip, other examples are: bot.whatismyipaddress.com, https://api.ipify.org/ ...
+if [ "$CFRECORD_TYPE" = "A" ]; then
+  :
+elif [ "$CFRECORD_TYPE" = "AAAA" ]; then
+  WANIPSITE="http://ipv6.icanhazip.com"
 else
-    # Extract just the ip from the ip line from cloudflare.
-    ip=$(echo $ip | sed -E "s/^ip=($ipv4_regex)$/\1/")
+  echo "$CFRECORD_TYPE specified is invalid, CFRECORD_TYPE can only be A(for IPv4)|AAAA(for IPv6)"
+  exit 2
 fi
 
-# Use regex to check for proper IPv4 format.
-if [[ ! $ip =~ ^$ipv4_regex$ ]]; then
-    logger -s "DDNS Updater: Failed to find a valid IP."
-    exit 2
+# get parameter
+while getopts k:u:h:z:t:f: opts; do
+  case ${opts} in
+    k) CFKEY=${OPTARG} ;;
+    u) CFUSER=${OPTARG} ;;
+    h) CFRECORD_NAME=${OPTARG} ;;
+    z) CFZONE_NAME=${OPTARG} ;;
+    t) CFRECORD_TYPE=${OPTARG} ;;
+    f) FORCE=${OPTARG} ;;
+  esac
+done
+
+# If required settings are missing just exit
+if [ "$CFKEY" = "" ]; then
+  echo "Missing api-key, get at: https://www.cloudflare.com/a/account/my-account"
+  echo "and save in ${0} or using the -k flag"
+  exit 2
+fi
+if [ "$CFUSER" = "" ]; then
+  echo "Missing username, probably your email-address"
+  echo "and save in ${0} or using the -u flag"
+  exit 2
+fi
+if [ "$CFRECORD_NAME" = "" ]; then 
+  echo "Missing hostname, what host do you want to update?"
+  echo "save in ${0} or using the -h flag"
+  exit 2
 fi
 
-###########################################
-## Check and set the proper auth header
-###########################################
-if [[ "${auth_method}" == "global" ]]; then
-  auth_header="X-Auth-Key:"
+# If the hostname is not a FQDN
+if [ "$CFRECORD_NAME" != "$CFZONE_NAME" ] && ! [ -z "${CFRECORD_NAME##*$CFZONE_NAME}" ]; then
+  CFRECORD_NAME="$CFRECORD_NAME.$CFZONE_NAME"
+  echo " => Hostname is not a FQDN, assuming $CFRECORD_NAME"
+fi
+
+# Get current and old WAN ip
+WAN_IP=`curl -s ${WANIPSITE}`
+WAN_IP_FILE=$HOME/.cf-wan_ip_$CFRECORD_NAME.txt
+if [ -f $WAN_IP_FILE ]; then
+  OLD_WAN_IP=`cat $WAN_IP_FILE`
 else
-  auth_header="Authorization: Bearer"
+  echo "No file, need IP"
+  OLD_WAN_IP=""
 fi
 
-###########################################
-## Seek for the A record
-###########################################
-
-logger "DDNS Updater: Check Initiated"
-record=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zone_identifier/dns_records?type=A&name=$record_name" \
-                      -H "X-Auth-Email: $auth_email" \
-                      -H "$auth_header $auth_key" \
-                      -H "Content-Type: application/json")
-
-###########################################
-## Check if the domain has an A record
-###########################################
-if [[ $record == *"\"count\":0"* ]]; then
-  logger -s "DDNS Updater: Record does not exist, perhaps create one first? (${ip} for ${record_name})"
-  exit 1
-fi
-
-###########################################
-## Get existing IP
-###########################################
-old_ip=$(echo "$record" | sed -E 's/.*"content":"(([0-9]{1,3}\.){3}[0-9]{1,3})".*/\1/')
-# Compare if they're the same
-if [[ $ip == $old_ip ]]; then
-  logger "DDNS Updater: IP ($ip) for ${record_name} has not changed."
+# If WAN IP is unchanged an not -f flag, exit here
+if [ "$WAN_IP" = "$OLD_WAN_IP" ] && [ "$FORCE" = false ]; then
+  echo "WAN IP Unchanged, to update anyway use flag -f true"
   exit 0
 fi
 
-###########################################
-## Set the record identifier from result
-###########################################
-record_identifier=$(echo "$record" | sed -E 's/.*"id":"(\w+)".*/\1/')
+# Get zone_identifier & record_identifier
+ID_FILE=$HOME/.cf-id_$CFRECORD_NAME.txt
+if [ -f $ID_FILE ] && [ $(wc -l $ID_FILE | cut -d " " -f 1) == 4 ] \
+  && [ "$(sed -n '3,1p' "$ID_FILE")" == "$CFZONE_NAME" ] \
+  && [ "$(sed -n '4,1p' "$ID_FILE")" == "$CFRECORD_NAME" ]; then
+    CFZONE_ID=$(sed -n '1,1p' "$ID_FILE")
+    CFRECORD_ID=$(sed -n '2,1p' "$ID_FILE")
+else
+    echo "Updating zone_identifier & record_identifier"
+    CFZONE_ID=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=$CFZONE_NAME" -H "X-Auth-Email: $CFUSER" -H "X-Auth-Key: $CFKEY" -H "Content-Type: application/json" | grep -Po '(?<="id":")[^"]*' | head -1 )
+    CFRECORD_ID=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$CFZONE_ID/dns_records?name=$CFRECORD_NAME" -H "X-Auth-Email: $CFUSER" -H "X-Auth-Key: $CFKEY" -H "Content-Type: application/json"  | grep -Po '(?<="id":")[^"]*' | head -1 )
+    echo "$CFZONE_ID" > $ID_FILE
+    echo "$CFRECORD_ID" >> $ID_FILE
+    echo "$CFZONE_NAME" >> $ID_FILE
+    echo "$CFRECORD_NAME" >> $ID_FILE
+fi
 
-###########################################
-## Change the IP@Cloudflare using the API
-###########################################
-update=$(curl -s -X PATCH "https://api.cloudflare.com/client/v4/zones/$zone_identifier/dns_records/$record_identifier" \
-                     -H "X-Auth-Email: $auth_email" \
-                     -H "$auth_header $auth_key" \
-                     -H "Content-Type: application/json" \
-                     --data "{\"type\":\"A\",\"name\":\"$record_name\",\"content\":\"$ip\",\"ttl\":\"$ttl\",\"proxied\":${proxy}}")
+# If WAN is changed, update cloudflare
+echo "Updating DNS to $WAN_IP"
 
-###########################################
-## Report the status
-###########################################
-case "$update" in
-*"\"success\":false"*)
-  echo -e "DDNS Updater: $ip $record_name DDNS failed for $record_identifier ($ip). DUMPING RESULTS:\n$update" | logger -s 
-  if [[ $slackuri != "" ]]; then
-    curl -L -X POST $slackuri \
-    --data-raw '{
-      "channel": "'$slackchannel'",
-      "text" : "'"$sitename"' DDNS Update Failed: '$record_name': '$record_identifier' ('$ip')."
-    }'
-  fi
-  if [[ $discorduri != "" ]]; then
-    curl -i -H "Accept: application/json" -H "Content-Type:application/json" -X POST \
-    --data-raw '{
-      "content" : "'"$sitename"' DDNS Update Failed: '$record_name': '$record_identifier' ('$ip')."
-    }' $discorduri
-  fi
-  exit 1;;
-*)
-  logger "DDNS Updater: $ip $record_name DDNS updated."
-  if [[ $slackuri != "" ]]; then
-    curl -L -X POST $slackuri \
-    --data-raw '{
-      "channel": "'$slackchannel'",
-      "text" : "'"$sitename"' Updated: '$record_name''"'"'s'""' new IP Address is '$ip'"
-    }'
-  fi
-  if [[ $discorduri != "" ]]; then
-    curl -i -H "Accept: application/json" -H "Content-Type:application/json" -X POST \
-    --data-raw '{
-      "content" : "'"$sitename"' Updated: '$record_name''"'"'s'""' new IP Address is '$ip'"
-    }' $discorduri
-  fi
-  exit 0;;
-esac
+RESPONSE=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$CFZONE_ID/dns_records/$CFRECORD_ID" \
+  -H "X-Auth-Email: $CFUSER" \
+  -H "X-Auth-Key: $CFKEY" \
+  -H "Content-Type: application/json" \
+  --data "{\"id\":\"$CFZONE_ID\",\"type\":\"$CFRECORD_TYPE\",\"name\":\"$CFRECORD_NAME\",\"content\":\"$WAN_IP\", \"ttl\":$CFTTL}")
+
+if [ "$RESPONSE" != "${RESPONSE%success*}" ] && [ "$(echo $RESPONSE | grep "\"success\":true")" != "" ]; then
+  echo "Updated succesfuly!"
+  echo $WAN_IP > $WAN_IP_FILE
+  exit
+else
+  echo 'Something went wrong :('
+  echo "Response: $RESPONSE"
+  exit 1
+fi
